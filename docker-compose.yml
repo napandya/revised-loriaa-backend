@@ -1,0 +1,210 @@
+# =============================================================
+# Loriaa AI CRM - Docker Compose Configuration
+# Full-stack development environment
+# =============================================================
+
+version: '3.8'
+
+services:
+  # =========================================================
+  # PostgreSQL Database with pgvector
+  # =========================================================
+  db:
+    image: pgvector/pgvector:pg15
+    container_name: loriaa-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-loriaa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-loriaa_secret_2024}
+      POSTGRES_DB: ${POSTGRES_DB:-loriaa}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-loriaa} -d ${POSTGRES_DB:-loriaa}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - loriaa-network
+
+  # =========================================================
+  # Redis (for caching and background tasks)
+  # =========================================================
+  redis:
+    image: redis:7-alpine
+    container_name: loriaa-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - loriaa-network
+
+  # =========================================================
+  # Backend API (FastAPI)
+  # =========================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: loriaa-backend
+    restart: unless-stopped
+    environment:
+      # Database
+      DATABASE_URL: postgresql://${POSTGRES_USER:-loriaa}:${POSTGRES_PASSWORD:-loriaa_secret_2024}@db:5432/${POSTGRES_DB:-loriaa}
+      
+      # Redis
+      REDIS_URL: redis://redis:6379/0
+      
+      # Security
+      SECRET_KEY: ${SECRET_KEY:-your-super-secret-key-change-in-production-min-32-chars}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      
+      # Environment
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      
+      # CORS - Allow frontend
+      CORS_ORIGINS: '["http://localhost:3000","http://localhost:5173","http://frontend:3000"]'
+      
+      # AI/ML (optional)
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      
+      # VAPI (optional)
+      VAPI_API_KEY: ${VAPI_API_KEY:-}
+      
+      # Twilio (optional)
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
+    volumes:
+      - ./backend:/app
+      - backend_cache:/root/.cache
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - loriaa-network
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        sleep 5 &&
+        echo 'Running migrations...' &&
+        alembic upgrade head &&
+        echo 'Starting server...' &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+
+  # =========================================================
+  # Frontend (React/Vite)
+  # =========================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: loriaa-frontend
+    restart: unless-stopped
+    environment:
+      VITE_BACKEND_URL: http://localhost:${BACKEND_PORT:-8000}
+      NODE_ENV: ${NODE_ENV:-development}
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules  # Anonymous volume for node_modules
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      - backend
+    networks:
+      - loriaa-network
+    command: yarn dev --host 0.0.0.0 --port 3000
+
+  # =========================================================
+  # Celery Worker (for background tasks)
+  # =========================================================
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: loriaa-celery-worker
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-loriaa}:${POSTGRES_PASSWORD:-loriaa_secret_2024}@db:5432/${POSTGRES_DB:-loriaa}
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY:-your-super-secret-key-change-in-production-min-32-chars}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - loriaa-network
+    command: celery -A app.tasks worker --loglevel=info
+    profiles:
+      - with-celery
+
+  # =========================================================
+  # Celery Beat (for scheduled tasks)
+  # =========================================================
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: loriaa-celery-beat
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-loriaa}:${POSTGRES_PASSWORD:-loriaa_secret_2024}@db:5432/${POSTGRES_DB:-loriaa}
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY:-your-super-secret-key-change-in-production-min-32-chars}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - loriaa-network
+    command: celery -A app.tasks beat --loglevel=info
+    profiles:
+      - with-celery
+
+# =========================================================
+# Networks
+# =========================================================
+networks:
+  loriaa-network:
+    driver: bridge
+
+# =========================================================
+# Volumes
+# =========================================================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  backend_cache:
+    driver: local
