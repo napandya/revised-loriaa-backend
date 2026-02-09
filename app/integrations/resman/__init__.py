@@ -1,0 +1,1 @@
+"""ResMan PMS integration module."""
