@@ -3,8 +3,6 @@
 # Full-stack development environment
 # =============================================================
 
-version: '3.8'
-
 services:
   # =========================================================
   # PostgreSQL Database with pgvector
@@ -54,8 +52,8 @@ services:
   # =========================================================
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: loriaa-backend
     restart: unless-stopped
     environment:
@@ -87,7 +85,7 @@ services:
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
       TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
     volumes:
-      - ./backend:/app
+      - .:/app
       - backend_cache:/root/.cache
     ports:
       - "${BACKEND_PORT:-8000}:8000"
@@ -119,7 +117,7 @@ services:
   # =========================================================
   frontend:
     build:
-      context: ./frontend
+      context: ../revised-loriaa-frontend
       dockerfile: Dockerfile
     container_name: loriaa-frontend
     restart: unless-stopped
@@ -127,7 +125,7 @@ services:
       VITE_BACKEND_URL: http://localhost:${BACKEND_PORT:-8000}
       NODE_ENV: ${NODE_ENV:-development}
     volumes:
-      - ./frontend:/app
+      - ../revised-loriaa-frontend:/app
       - /app/node_modules  # Anonymous volume for node_modules
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
@@ -142,8 +140,8 @@ services:
   # =========================================================
   celery-worker:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: loriaa-celery-worker
     restart: unless-stopped
     environment:
@@ -152,7 +150,7 @@ services:
       SECRET_KEY: ${SECRET_KEY:-your-super-secret-key-change-in-production-min-32-chars}
       ENVIRONMENT: ${ENVIRONMENT:-development}
     volumes:
-      - ./backend:/app
+      - .:/app
     depends_on:
       db:
         condition: service_healthy
@@ -169,8 +167,8 @@ services:
   # =========================================================
   celery-beat:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: loriaa-celery-beat
     restart: unless-stopped
     environment:
@@ -179,7 +177,7 @@ services:
       SECRET_KEY: ${SECRET_KEY:-your-super-secret-key-change-in-production-min-32-chars}
       ENVIRONMENT: ${ENVIRONMENT:-development}
     volumes:
-      - ./backend:/app
+      - .:/app
     depends_on:
       db:
         condition: service_healthy
