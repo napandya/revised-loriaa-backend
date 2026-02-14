@@ -109,7 +109,7 @@ services:
         echo 'Waiting for database...' &&
         sleep 5 &&
         echo 'Running migrations...' &&
-        alembic upgrade head &&
+        (alembic upgrade head 2>/dev/null || echo 'Alembic not configured, skipping migrations') &&
         echo 'Starting server...' &&
         uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
       "

@@ -21,7 +21,6 @@ from app.services.lead_service import (
     update_lead,
     delete_lead,
     add_lead_activity,
-    get_lead_activities,
     update_lead_status,
     calculate_lead_score_internal,
     get_pipeline_stats,
@@ -48,7 +47,6 @@ from app.services.document_service import (
     search_documents,
 )
 from app.services.scoring_service import (
-    score_leads,
     calculate_lead_score,
 )
 
@@ -64,7 +62,6 @@ __all__ = [
     "update_lead",
     "delete_lead",
     "add_lead_activity",
-    "get_lead_activities",
     "update_lead_status",
     "calculate_lead_score_internal",
     "get_pipeline_stats",
@@ -91,6 +88,5 @@ __all__ = [
     "search_documents",
     
     # Scoring
-    "score_leads",
     "calculate_lead_score",
 ]
