@@ -1,596 +1,560 @@
-# 🤖 Loriaa AI Backend
+# Loriaa AI CRM — Backend
 
-Comprehensive FastAPI backend for the Loriaa AI voice bot platform with AI-powered features, real-time call tracking, and intelligent knowledge base management.
+AI-powered property management CRM backend built with FastAPI, Google Gemini agents, OpenAI ad-copy generation, and VAPI voice integration.
 
-## ✨ Features
+## Tech Stack
 
-- 🔐 **JWT Authentication** - Secure user authentication with OAuth2 and JWT tokens
-- 🤖 **Bot Management System** - Create, configure, and manage multiple AI voice bots
-- 📞 **Call Logs Tracking** - Track and analyze inbound/outbound call records
-- 👥 **Team Management** - Manage team members with role-based access
-- 💰 **Billing Dashboard** - Real-time cost tracking and billing analytics
-- 🧠 **Vector-based Knowledge Base (RAG)** - OpenAI embeddings with pgvector for semantic search
-- 📊 **Dashboard Metrics** - Comprehensive analytics and performance metrics
-- 🐳 **Docker Support** - Full containerization with Docker Compose
-- 📚 **Auto-generated API Documentation** - Interactive Swagger UI and ReDoc
+| Layer | Technology |
+|-------|-----------|
+| Framework | FastAPI 2.0, Python 3.13 |
+| Database | PostgreSQL 15 + pgvector |
+| Cache | Redis 7 |
+| AI Agents | Google ADK / Gemini 2.0 Flash |
+| Ad Copy | OpenAI GPT-4o |
+| Voice | VAPI (AI voice assistants) |
+| Background Jobs | Celery |
+| Auth | JWT (python-jose + bcrypt) |
+| ORM | SQLAlchemy 2.x + Alembic migrations |
+| Monitoring | Structlog, Sentry |
 
-## 🛠 Tech Stack
+## Overall Architecture
 
-- **FastAPI** - Modern, fast web framework for building APIs
-- **PostgreSQL with pgvector** - Vector similarity search for RAG
-- **SQLAlchemy 2.0** - SQL toolkit and ORM
-- **JWT Authentication** - Secure token-based authentication
-- **OpenAI Embeddings** - Text embeddings for semantic search
-- **Docker & Docker Compose** - Containerization and orchestration
-- **Pydantic** - Data validation using Python type annotations
+```mermaid
+graph TB
+    subgraph Client["Client Layer"]
+        Browser["Browser"]
+        Phone["Phone / Voice"]
+    end
 
-## 📋 Prerequisites
+    subgraph Frontend["Frontend — React + Vite (port 3000)"]
+        UI["React UI\n(Pages, Components)"]
+        Store["Zustand Store"]
+        AxiosClient["Axios HTTP Client\n(JWT interceptor)"]
+    end
 
-Choose one of the following:
+    subgraph Backend["Backend — FastAPI (port 8000)"]
+        MW["Middleware Stack\nCORS → Logging → Security → GZip"]
+        APIRoutes["API v1 Routers\nAuth, Bots, Calls, Leads,\nInbox, Teams, Billing,\nDashboard, Settings,\nKB, Voice, Ad Copy"]
 
-**Option 1: Docker (Recommended)**
-- Docker 20.10+
-- Docker Compose 1.29+
+        subgraph Agents["AI Agent System"]
+            COO["COO Orchestrator"]
+            Leasing["Leasing Agent"]
+            Marketing["Marketing Agent"]
+            Property["Property Agent"]
+            Tools["Tool Functions\n(lead, comms, scheduling,\nanalytics, docs, integrations)"]
+        end
 
-**Option 2: Manual Setup**
-- Python 3.11+
-- PostgreSQL 15+ with pgvector extension
+        Services["Service Layer\nLead, Inbox, Document,\nAnalytics, Scoring,\nNotification, Integration,\nContentGeneration"]
+    end
 
-## 🚀 Quick Start with Docker
+    subgraph External["External Services"]
+        Gemini["Google Gemini\n(Agent AI)"]
+        OpenAI["OpenAI GPT-4o\n(Ad Copy)"]
+        VAPI["VAPI\n(Voice AI)"]
+        Twilio["Twilio\n(SMS)"]
+        FBads["Facebook\nMarketing API"]
+        GAds["Google Ads\nAPI"]
+        ResMan["ResMan\n(PMS)"]
+    end
 
-### 1. Clone the repository
+    subgraph Data["Data Layer"]
+        PG[("PostgreSQL 15\n+ pgvector")]
+        Redis[("Redis 7\nCache / Queue")]
+    end
 
-```bash
-git clone https://github.com/napandya/loriaa-ai-backend.git
-cd loriaa-ai-backend
+    subgraph Workers["Background Workers"]
+        Celery["Celery Worker"]
+        Beat["Celery Beat\n(Scheduler)"]
+    end
+
+    Browser --> UI
+    UI --> Store
+    UI --> AxiosClient
+    AxiosClient -->|"REST /api/v1/*"| MW
+    MW --> APIRoutes
+    APIRoutes --> Services
+    APIRoutes --> Agents
+    COO --> Leasing
+    COO --> Marketing
+    COO --> Property
+    Leasing --> Tools
+    Marketing --> Tools
+    Property --> Tools
+    Agents --> Gemini
+    Marketing --> OpenAI
+    Services --> PG
+    Services --> Redis
+    Tools --> PG
+    APIRoutes -->|"Voice webhooks"| VAPI
+    Phone --> VAPI
+    Services --> Twilio
+    Services --> FBads
+    Services --> GAds
+    Services --> ResMan
+    Celery --> PG
+    Celery --> Redis
+    Beat --> Redis
 ```
 
-### 2. Create environment file
+> **See also:** [SEQUENCE_DIAGRAM.md](SEQUENCE_DIAGRAM.md) for detailed flow diagrams of every major operation.
+
+## Prerequisites
+
+### Required Software
+
+| Software | Version | Download |
+|----------|---------|----------|
+| Git | 2.40+ | https://git-scm.com/downloads |
+| Docker Desktop | 4.x+ | https://www.docker.com/products/docker-desktop/ |
+| Python | 3.11+ | https://www.python.org/downloads/ |
+| Node.js | 20 LTS | https://nodejs.org/ |
+| Yarn | 1.22+ | https://classic.yarnpkg.com/en/docs/install |
+| GitHub Desktop (optional) | Latest | https://desktop.github.com/ |
+
+### Installation — Windows
+
+1. **Git**
+   - Download the installer from https://git-scm.com/downloads/win
+   - Run the `.exe` and follow the wizard (defaults are fine)
+   - Verify: open **PowerShell** and run:
+     ```powershell
+     git --version
+     ```
+
+2. **Docker Desktop**
+   - Download from https://www.docker.com/products/docker-desktop/
+   - Run the installer — enable **WSL 2 backend** when prompted
+   - Restart your PC if asked
+   - Launch Docker Desktop from the Start Menu and wait for the whale icon to become steady in the system tray
+   - Verify:
+     ```powershell
+     docker --version
+     docker compose version
+     ```
+
+3. **Python 3.11+**
+   - Download from https://www.python.org/downloads/
+   - **Check "Add Python to PATH"** during installation
+   - Verify:
+     ```powershell
+     python --version
+     pip --version
+     ```
+
+4. **Node.js 20 LTS**
+   - Download the LTS installer from https://nodejs.org/
+   - Run the `.msi` and follow the wizard
+   - Verify:
+     ```powershell
+     node --version
+     npm --version
+     ```
+
+5. **Yarn**
+   - After Node.js is installed:
+     ```powershell
+     npm install -g yarn
+     yarn --version
+     ```
+
+6. **GitHub Desktop (optional)**
+   - Download from https://desktop.github.com/
+   - Sign in with your GitHub account
+   - Use it to clone repos with a GUI instead of the command line
+
+### Installation — macOS
+
+1. **Homebrew** (package manager — install first if you don't have it)
+   ```bash
+   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+   ```
+
+2. **Git** (comes with Xcode CLT, or install via Homebrew)
+   ```bash
+   xcode-select --install   # easiest option
+   # or
+   brew install git
+   git --version
+   ```
+
+3. **Docker Desktop**
+   - Download the `.dmg` from https://www.docker.com/products/docker-desktop/
+   - Drag to Applications, launch, and grant permissions
+   - Verify:
+     ```bash
+     docker --version
+     docker compose version
+     ```
+
+4. **Python 3.11+**
+   ```bash
+   brew install python@3.13
+   python3 --version
+   pip3 --version
+   ```
+
+5. **Node.js 20 LTS**
+   ```bash
+   brew install node@20
+   node --version
+   npm --version
+   ```
+
+6. **Yarn**
+   ```bash
+   npm install -g yarn
+   yarn --version
+   ```
+
+7. **GitHub Desktop (optional)**
+   - Download from https://desktop.github.com/
+
+### Clone the Repositories
+
+Using the command line:
 
 ```bash
-cp .env.example .env
+# Create a project folder
+mkdir ~/loriaa && cd ~/loriaa    # macOS / Linux
+mkdir D:\loriaa && cd D:\loriaa   # Windows PowerShell
+
+# Clone both repos side by side
+git clone https://github.com/napandya/revised-loriaa-backend.git
+git clone https://github.com/napandya/revised-loriaa-frontend.git
 ```
 
-Edit `.env` and update the values (especially `OPENAI_API_KEY` if using knowledge base features):
+Or using **GitHub Desktop**: click **File → Clone Repository**, search for `napandya/revised-loriaa-backend` and `napandya/revised-loriaa-frontend`, and clone them into the same parent folder.
 
-```env
-DATABASE_URL=postgresql://loriaa_user:loriaa_pass@postgres:5432/loriaa_db
-SECRET_KEY=your-secret-key-change-this-in-production
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-OPENAI_API_KEY=sk-your-openai-api-key-here
-CORS_ORIGINS=["http://localhost:5173","http://localhost:3000","http://localhost:5174"]
+Your folder structure should look like:
+
+```
+loriaa/
+├── revised-loriaa-backend/
+└── revised-loriaa-frontend/
 ```
 
-### 3. Start services with Docker Compose
+> **Important:** Both repos must sit side by side in the same parent directory. The `docker-compose.yml` in the backend repo references `../revised-loriaa-frontend` for the frontend build.
+
+---
+
+## Quick Start (Docker) — Recommended
 
 ```bash
-docker-compose up -d
+cd revised-loriaa-backend
+
+# 1. Copy environment file and fill in your keys
+cp .env.example .env          # macOS / Linux
+copy .env.example .env        # Windows CMD
+
+# 2. Start all services
+docker compose up -d
+
+# 3. Seed the database
+docker compose exec backend python scripts/seed_comprehensive.py
 ```
 
-This will start:
-- PostgreSQL database with pgvector extension (port 5432)
-- FastAPI backend application (port 8000)
+Services will be available at:
 
-### 4. Seed the database
+| Service | URL |
+|---------|-----|
+| Backend API | http://localhost:8000 |
+| Swagger Docs | http://localhost:8000/docs |
+| ReDoc | http://localhost:8000/redoc |
+| Frontend | http://localhost:3000 |
+| PostgreSQL | localhost:5432 |
+| Redis | localhost:6379 |
 
-```bash
-docker-compose exec backend python scripts/seed_data.py
-```
+> **Port conflict?** Set `DB_PORT=5433` in `.env` if your local PostgreSQL is already on 5432.
 
-### 5. Access the API
-
-- **API Base URL**: http://localhost:8000
-- **Swagger UI (Interactive Docs)**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
-- **Health Check**: http://localhost:8000/health
-
-## 🔧 Manual Setup (without Docker)
-
-### 1. Install PostgreSQL with pgvector
+## Quick Start (Local — without Docker)
 
 ```bash
-# On Ubuntu/Debian
-sudo apt-get update
-sudo apt-get install postgresql-15 postgresql-contrib
+cd revised-loriaa-backend
 
-# Install pgvector
-sudo apt-get install postgresql-15-pgvector
-
-# Or install from source
-git clone https://github.com/pgvector/pgvector.git
-cd pgvector
-make
-sudo make install
-```
-
-### 2. Create database
-
-```bash
-sudo -u postgres psql
-
-# In PostgreSQL shell:
-CREATE DATABASE loriaa_db;
-CREATE USER loriaa_user WITH PASSWORD 'loriaa_pass';
-GRANT ALL PRIVILEGES ON DATABASE loriaa_db TO loriaa_user;
-\c loriaa_db
-CREATE EXTENSION vector;
-\q
-```
-
-### 3. Install Python dependencies
-
-```bash
-# Create virtual environment
+# 1. Create virtual environment
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate        # macOS / Linux
+venv\Scripts\activate           # Windows PowerShell
 
-# Install dependencies
+# 2. Install dependencies
 pip install -r requirements.txt
-```
 
-### 4. Configure environment
-
-```bash
+# 3. Configure environment
 cp .env.example .env
-# Edit .env with your configuration
-```
+# Edit .env with your credentials
 
-### 5. Create tables and seed database
+# 4. Start PostgreSQL + Redis (still uses Docker for databases)
+docker compose up -d db redis
 
-```bash
-python scripts/seed_data.py
-```
+# 5. Run migrations and seed
+alembic upgrade head
+python scripts/seed_comprehensive.py
 
-### 6. Start the server
-
-```bash
+# 6. Start the backend server
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-## 📚 API Endpoints Documentation
+Then in a **separate terminal**, start the frontend:
+
+```bash
+cd revised-loriaa-frontend
+yarn install
+yarn start     # runs on http://localhost:3000
+```
+
+## Environment Variables
+
+See [.env.example](.env.example) for all available variables. Key ones:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `SECRET_KEY` | Yes | JWT signing key (min 32 chars) |
+| `GOOGLE_API_KEY` | Yes | Google Gemini API key (agents) |
+| `OPENAI_API_KEY` | Yes | OpenAI API key (ad copy generation) |
+| `VAPI_API_KEY` | Optional | VAPI voice assistant API key |
+| `TWILIO_ACCOUNT_SID` | Optional | Twilio SMS integration |
+| `TWILIO_AUTH_TOKEN` | Optional | Twilio auth |
+| `TWILIO_PHONE_NUMBER` | Optional | Twilio sender number |
+| `FACEBOOK_ACCESS_TOKEN` | Optional | Facebook Marketing API |
+| `FACEBOOK_AD_ACCOUNT_ID` | Optional | Facebook Ad account |
+
+## AI Agents
+
+Three specialized AI agents powered by Google Gemini, orchestrated by a COO coordinator:
+
+### COO Orchestrator (`app/agents/orchestrator.py`)
+
+Routes incoming requests to the appropriate specialist agent based on intent analysis.
+
+### Leasing Agent
+
+- Lead qualification and scoring
+- Tour scheduling and follow-ups
+- Application processing
+- Tools: lead management, SMS/email communication, scheduling
+
+### Marketing Agent
+
+- Campaign performance analysis
+- Budget optimization recommendations
+- **AI ad copy generation** (via OpenAI GPT-4o)
+- Facebook, Instagram, Google Ads, TikTok, LinkedIn support
+- Fair Housing Act compliance built-in
+- Tools: analytics, integration APIs, ad copy generation
+
+### Property Agent
+
+- Document Q&A and policy lookup
+- Procedure guidance
+- RAG-based knowledge retrieval
+- Tools: document search, knowledge base
+
+## API Endpoints
 
 ### Authentication
 
-- `POST /api/v1/auth/register` - Register a new user
-- `POST /api/v1/auth/login` - Login and get JWT token
-- `GET /api/v1/auth/me` - Get current user profile
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/auth/register` | Register new user |
+| POST | `/api/v1/auth/login` | Login (returns JWT) |
+| GET | `/api/v1/auth/me` | Current user profile |
 
-### Bots
+### CRM
 
-- `GET /api/v1/bots` - Get all bots (with pagination, search)
-- `POST /api/v1/bots` - Create a new bot
-- `GET /api/v1/bots/{bot_id}` - Get bot details
-- `PUT /api/v1/bots/{bot_id}` - Update a bot
-- `DELETE /api/v1/bots/{bot_id}` - Delete a bot
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET/POST | `/api/v1/leads` | Lead CRUD |
+| GET | `/api/v1/leads/pipeline` | Lead pipeline stats |
+| GET | `/api/v1/inbox` | Unified inbox (multi-channel) |
+| GET/POST | `/api/v1/documents` | Document management |
 
-### Call Logs
+### Bots & Calls
 
-- `GET /api/v1/call-logs` - Get all call logs (with pagination, search)
-- `POST /api/v1/call-logs` - Create a new call log
-- `GET /api/v1/call-logs/{log_id}` - Get call log details
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET/POST | `/api/v1/bots` | Bot management |
+| GET/POST | `/api/v1/call-logs` | Call log tracking |
 
-### Teams
+### Teams & Billing
 
-- `GET /api/v1/teams` - Get all team members
-- `POST /api/v1/teams` - Create a new team member
-- `PUT /api/v1/teams/{member_id}` - Update a team member
-- `DELETE /api/v1/teams/{member_id}` - Delete a team member
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET/POST | `/api/v1/teams` | Team management |
+| GET | `/api/v1/billing/current` | Current billing |
+| GET | `/api/v1/billing/history` | Billing history |
 
-### Billing
+### Knowledge Base (RAG)
 
-- `GET /api/v1/billing/current` - Get current month billing stats
-- `GET /api/v1/billing/history` - Get billing history
-- `GET /api/v1/billing/stats?month=YYYY-MM` - Get stats for specific month
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/kb/documents` | Upload document (with embeddings) |
+| POST | `/api/v1/kb/query` | Vector similarity search |
+| POST | `/api/v1/kb/chat` | RAG-based chat |
 
-### Knowledge Base
+### Voice (VAPI)
 
-- `POST /api/v1/kb/documents` - Upload a document (with OpenAI embeddings)
-- `GET /api/v1/kb/documents?bot_id={bot_id}` - Get all documents for a bot
-- `DELETE /api/v1/kb/documents/{doc_id}` - Delete a document
-- `POST /api/v1/kb/query` - Query knowledge base with vector similarity search
-- `POST /api/v1/kb/chat` - RAG-based chat with context from knowledge base
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/voice/assistants` | Create voice assistant |
+| POST | `/api/v1/voice/calls` | Initiate voice call |
+| POST | `/api/v1/voice/webhooks/vapi` | VAPI webhook handler |
+
+### AI Agents
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/agents/leasing/chat` | Chat with leasing agent |
+| POST | `/api/v1/agents/marketing/chat` | Chat with marketing agent |
+| POST | `/api/v1/agents/marketing/generate-ad-copy` | Generate ad copy |
+| POST | `/api/v1/agents/property/chat` | Chat with property agent |
+
+### Ad Copy (ChatGPT)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/ad-copy/generate` | Generate ad copy |
+| POST | `/api/v1/ad-copy/social-post` | Generate social media post |
+| POST | `/api/v1/ad-copy/improve` | Improve existing ad copy |
+| POST | `/api/v1/ad-copy/campaign-strategy` | Generate campaign strategy |
+
+### Integrations
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| * | `/api/v1/integrations/facebook/*` | Facebook Ads |
+| * | `/api/v1/integrations/google-ads/*` | Google Ads |
+| * | `/api/v1/integrations/twilio/*` | Twilio SMS |
+| * | `/api/v1/integrations/resman/*` | ResMan PMS |
 
 ### Dashboard
 
-- `GET /api/v1/dashboard/metrics` - Get dashboard overview metrics
-- `GET /api/v1/dashboard/analytics` - Get analytics with time-series data
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/dashboard/metrics` | Overview metrics |
+| GET | `/api/v1/dashboard/analytics` | Time-series analytics |
 
-## 📁 Project Structure
+### Settings
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET/PUT | `/api/v1/settings/profile` | User profile settings |
+| GET/PUT | `/api/v1/settings/notifications` | Notification preferences |
+| GET/PUT | `/api/v1/settings/integrations` | Integration configs |
+
+## Project Structure
 
 ```
-loriaa-ai-backend/
-├── app/
-│   ├── api/                    # API routes
-│   │   ├── v1/
-│   │   │   ├── auth.py        # Authentication endpoints
-│   │   │   ├── bots.py        # Bot management
-│   │   │   ├── call_logs.py   # Call log tracking
-│   │   │   ├── teams.py       # Team management
-│   │   │   ├── billing.py     # Billing endpoints
-│   │   │   ├── knowledge_base.py  # RAG and vector search
-│   │   │   └── dashboard.py   # Dashboard metrics
-│   │   └── deps.py            # Shared dependencies
-│   ├── core/                  # Core utilities
-│   │   ├── config.py          # Application settings
-│   │   ├── security.py        # Security utilities
-│   │   └── embeddings.py      # OpenAI embeddings
-│   ├── models/                # SQLAlchemy models
-│   │   ├── user.py
-│   │   ├── bot.py
-│   │   ├── call_log.py
-│   │   ├── team.py
-│   │   ├── knowledge_base.py
-│   │   └── billing.py
-│   ├── schemas/               # Pydantic schemas
-│   │   ├── user.py
-│   │   ├── bot.py
-│   │   ├── call_log.py
-│   │   ├── team.py
-│   │   ├── knowledge_base.py
-│   │   └── billing.py
-│   ├── database.py            # Database setup
-│   └── main.py                # FastAPI application
-├── scripts/
-│   └── seed_data.py           # Database seeding script
-├── .env.example               # Environment variables template
-├── .gitignore
-├── docker-compose.yml         # Docker Compose configuration
-├── Dockerfile                 # Docker image definition
-├── init.sql                   # PostgreSQL initialization
-├── requirements.txt           # Python dependencies
-└── README.md
+app/
+├── main.py                     # FastAPI application entry
+├── database.py                 # DB setup, connection pooling
+├── agents/                     # AI Agent System
+│   ├── base.py                 # Abstract base agent (Gemini)
+│   ├── orchestrator.py         # COO orchestrator
+│   ├── prompts/                # System prompts per agent
+│   ├── tools/                  # Agent callable tools
+│   │   ├── lead_tools.py
+│   │   ├── communication_tools.py
+│   │   ├── scheduling_tools.py
+│   │   ├── analytics_tools.py
+│   │   ├── document_tools.py
+│   │   └── integration_tools.py
+│   └── workforce/              # Specialist agents
+│       ├── leasing_agent.py
+│       ├── marketing_agent.py
+│       └── property_agent.py
+├── api/
+│   ├── deps.py                 # Shared dependencies
+│   └── v1/                     # API v1 endpoints
+│       ├── auth.py, bots.py, call_logs.py, teams.py
+│       ├── billing.py, dashboard.py, voice.py
+│       ├── leads.py, inbox.py, documents.py, settings.py
+│       ├── knowledge_base.py, ad_copy.py
+│       ├── agents/             # Agent endpoints
+│       └── integrations/       # Integration endpoints
+├── core/
+│   ├── config.py               # Pydantic Settings
+│   ├── security.py             # JWT, password hashing
+│   ├── exceptions.py           # Custom exception hierarchy
+│   ├── logging.py              # Structured logging (JSON)
+│   └── embeddings.py           # OpenAI embeddings
+├── integrations/               # External service clients
+│   ├── facebook/
+│   ├── google_ads/
+│   ├── twilio/
+│   ├── vapi/                   # Voice AI
+│   └── resman/                 # Property management
+├── models/                     # SQLAlchemy ORM models
+├── schemas/                    # Pydantic request/response schemas
+└── services/                   # Business logic layer
+    ├── base_service.py
+    ├── lead_service.py
+    ├── inbox_service.py
+    ├── document_service.py
+    ├── analytics_service.py
+    ├── scoring_service.py      # Gemini-powered lead scoring
+    ├── notification_service.py
+    ├── integration_service.py
+    └── content_generation_service.py  # OpenAI ad copy
 ```
 
-## 💻 Frontend Integration Examples
-
-### Login Example
-
-```typescript
-// Using fetch
-const login = async (email: string, password: string) => {
-  const formData = new FormData();
-  formData.append('username', email);  // OAuth2 uses 'username' field
-  formData.append('password', password);
-  
-  const response = await fetch('http://localhost:8000/api/v1/auth/login', {
-    method: 'POST',
-    body: formData,
-  });
-  
-  const data = await response.json();
-  localStorage.setItem('token', data.access_token);
-  return data;
-};
-
-// Using axios
-import axios from 'axios';
-
-const login = async (email: string, password: string) => {
-  const formData = new URLSearchParams();
-  formData.append('username', email);
-  formData.append('password', password);
-  
-  const response = await axios.post(
-    'http://localhost:8000/api/v1/auth/login',
-    formData
-  );
-  
-  localStorage.setItem('token', response.data.access_token);
-  return response.data;
-};
-```
-
-### Authenticated Request Example
-
-```typescript
-const getBots = async () => {
-  const token = localStorage.getItem('token');
-  
-  const response = await fetch('http://localhost:8000/api/v1/bots', {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-    },
-  });
-  
-  return await response.json();
-};
-```
-
-## 🧠 Knowledge Base Usage
-
-### Upload a Document
+## Docker Services
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/kb/documents" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "bot_id": "your-bot-uuid",
-    "title": "Rent Payment Policy",
-    "content": "Our rent payment policy requires payment by the 5th of each month...",
-    "metadata": {"category": "policy"}
-  }'
+docker compose up -d                            # Core services (db, redis, backend, frontend)
+docker compose --profile with-celery up -d      # Include Celery workers
 ```
 
-### Query with Vector Search
+| Service | Container | Port |
+|---------|-----------|------|
+| PostgreSQL + pgvector | loriaa-db | 5432 |
+| Redis | loriaa-redis | 6379 |
+| Backend (FastAPI) | loriaa-backend | 8000 |
+| Frontend (React/Vite) | loriaa-frontend | 3000 |
+| Celery Worker | loriaa-celery-worker | — |
+| Celery Beat | loriaa-celery-beat | — |
+
+## Makefile Commands
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/kb/query" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "bot_id": "your-bot-uuid",
-    "query": "What is the rent payment deadline?",
-    "top_k": 5
-  }'
+make setup      # Initial setup (copy .env, build images)
+make up         # Start all services
+make down       # Stop all services
+make restart    # Restart all services
+make logs       # View all logs
+make logs-b     # Backend logs only
+make seed       # Seed database with demo data
+make test       # Run tests
+make test-cov   # Tests with coverage
+make clean      # Remove containers and volumes
+make reset-db   # Reset database (destructive)
 ```
 
-## 🔐 Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | `postgresql://loriaa_user:loriaa_pass@localhost:5432/loriaa_db` |
-| `SECRET_KEY` | JWT secret key | `dev-secret-key-change-in-production` |
-| `ALGORITHM` | JWT algorithm | `HS256` |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | JWT expiration time | `30` |
-| `OPENAI_API_KEY` | OpenAI API key for embeddings | Required for KB features |
-| `CORS_ORIGINS` | Allowed CORS origins (JSON array) | `["http://localhost:5173"]` |
-
-## 🐛 Troubleshooting
-
-### Docker Desktop Not Running (Windows)
-
-**Error**: `unable to get image 'loriaa-ai-backend-backend': error during connect: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.`
-
-**Solution**:
-
-1. **Start Docker Desktop**:
-   - Open Docker Desktop from the Start Menu
-   - Wait for Docker to fully start (whale icon should be steady in system tray)
-   - You should see "Docker Desktop is running" in the UI
-
-2. **Verify Docker is running**:
-   ```cmd
-   docker version
-   docker info
-   ```
-
-3. **Check Docker service** (PowerShell as Administrator):
-   ```powershell
-   Get-Service -Name com.docker.service
-   # If stopped, start it:
-   Start-Service -Name com.docker.service
-   ```
-
-4. **If using WSL 2 backend**, verify WSL is running:
-   ```cmd
-   wsl --status
-   wsl -l -v
-   ```
-
-5. **Restart Docker Desktop**:
-   - Right-click Docker icon in system tray → Quit Docker Desktop
-   - Wait 10 seconds
-   - Start Docker Desktop again
-
-6. **After Docker is running**, try again:
-   ```cmd
-   docker-compose down
-   docker-compose up --build -d
-   ```
-
-### Uvicorn Command Not Found
-
-**Error**: `uvicorn : The term 'uvicorn' is not recognized as the name of a cmdlet, function, script file, or operable program.`
-
-This error means uvicorn is not installed or Python is not in your PATH. You have two options:
-
-**Option A: Use Docker (Recommended - Already Working!)**
-
-Your application is already running in Docker! No need to install Python locally.
-
-```cmd
-# Check if containers are running
-docker-compose ps
-
-# View logs
-docker-compose logs -f backend
-
-# Restart if needed
-docker-compose restart backend
-```
-
-Access your API at: http://localhost:8000/docs
-
-**Option B: Install Python and Dependencies Locally**
-
-If you want to run without Docker:
-
-1. **Install Python 3.11+**:
-   - Download from: https://www.python.org/downloads/
-   - During installation, check "Add Python to PATH"
-   - Restart your terminal after installation
-
-2. **Verify Python installation**:
-   ```cmd
-   python --version
-   # or
-   py --version
-   ```
-
-3. **Create and activate virtual environment**:
-   ```cmd
-   cd D:\Git_Repo\loriaa-ai-backend
-   python -m venv venv
-   venv\Scripts\activate
-   ```
-
-4. **Install dependencies**:
-   ```cmd
-   pip install -r requirements.txt
-   ```
-
-5. **Set up local PostgreSQL** (or use Docker for just the database):
-   ```cmd
-   # Option 1: Use Docker for database only
-   docker-compose up -d postgres
-   
-   # Update .env to point to localhost
-   # DATABASE_URL=postgresql://loriaa_user:loriaa_pass@localhost:5432/loriaa_db
-   ```
-
-6. **Run uvicorn**:
-   ```cmd
-   # From project root (not app folder!)
-   cd D:\Git_Repo\loriaa-ai-backend
-   uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-   ```
-
-### Common Docker Issues
-
-**Port already in use (5432 or 8000)**:
-```cmd
-# Find process using port 5432 (PostgreSQL)
-netstat -ano | findstr :5432
-
-# Find process using port 8000 (Backend)
-netstat -ano | findstr :8000
-
-# Kill the process (replace PID with actual process ID)
-taskkill /PID <PID> /F
-```
-
-**Database connection errors**:
-```bash
-# Check if PostgreSQL container is healthy
-docker-compose ps
-
-# View database logs
-docker-compose logs postgres
-
-# Restart PostgreSQL
-docker-compose restart postgres
-```
-
-**Backend container crashes**:
-```bash
-# View backend logs
-docker-compose logs backend
-
-# Rebuild backend image
-docker-compose up --build backend
-```
-
-**Permission issues (Windows)**:
-```cmd
-# Run PowerShell as Administrator and restart Docker
-Restart-Service -Name com.docker.service -Force
-```
-
-## 🛠 Development Commands
-
-### View logs
-
-```bash
-docker-compose logs -f backend
-```
-
-### Restart services
-
-```bash
-docker-compose restart
-```
-
-### Stop services
-
-```bash
-docker-compose down
-```
-
-### Reset database
-
-```bash
-docker-compose down -v
-docker-compose up -d
-docker-compose exec backend python scripts/seed_data.py
-```
-
-### Run tests
+## Testing
 
 ```bash
 # With Docker
-docker-compose exec backend pytest
+docker compose exec backend pytest
 
-# Without Docker
+# Locally
 pytest
+pytest --cov=app --cov-report=html
 ```
 
-## 🚀 Deployment
+## Default Credentials
 
-### Production Environment Variables
-
-For production, make sure to:
-
-1. Generate a secure secret key:
-```bash
-openssl rand -hex 32
-```
-
-2. Set strong database credentials
-3. Configure proper CORS origins
-4. Set `OPENAI_API_KEY` if using knowledge base features
-
-### Security Considerations
-
-- Never commit `.env` file to version control
-- Use strong passwords for database and secret keys
-- Enable HTTPS in production
-- Implement rate limiting for API endpoints
-- Regular security updates for dependencies
-
-## 🔑 Default Credentials
-
-After seeding the database:
+After seeding:
 
 ```
 Email: demo@loriaa.ai
 Password: password123
 ```
 
-## 📖 API Documentation
+## Authors
 
-Once the server is running, visit:
+- **Nandan Pandya** — [@napandya](https://github.com/napandya) — pandyanandan@gmail.com
+- **Daniel Twito** — [@outsider8u](https://github.com/outsider8u) — Daniel@loriaa.ai
 
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
+## License
 
-These provide interactive API documentation where you can test endpoints directly.
-
-## 📝 License
-
-MIT License
-
-## 👤 Author
-
-**Nandan Pandya**
-
-- Email: pandyanandan@gmail.com
-- GitHub: [@napandya](https://github.com/napandya)
-
-**Daniel Twito**
-
-- Email: Daniel@loriaa.ai
-- GitHub: [@outsider8u](https://github.com/outsider8u)
-
-## 🤝 Contributing
-
-Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/napandya/loriaa-ai-backend/issues).
-
-## ⭐ Show your support
-
-Give a ⭐️ if this project helped you!
-
----
-
-**Built with ❤️ using FastAPI and modern Python tools**
+MIT
