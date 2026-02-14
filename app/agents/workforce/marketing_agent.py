@@ -26,7 +26,9 @@ class MarketingAgent(BaseAgent):
             analytics_tools.calculate_roi,
             integration_tools.update_facebook_campaign,
             integration_tools.track_google_ads_conversion,
-            integration_tools.get_facebook_campaign_insights
+            integration_tools.get_facebook_campaign_insights,
+            integration_tools.generate_facebook_ad_copy,
+            integration_tools.generate_social_ad_copy,
         ]
         
         super().__init__(

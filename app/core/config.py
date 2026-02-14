@@ -94,6 +94,11 @@ class Settings(BaseSettings):
         description="Facebook Webhook Verify Token"
     )
     
+    FACEBOOK_AD_ACCOUNT_ID: str = Field(
+        default="",
+        description="Facebook Ad Account ID (e.g., act_123456789)"
+    )
+    
     # Google Ads
     GOOGLE_ADS_DEVELOPER_TOKEN: str = Field(
         default="",

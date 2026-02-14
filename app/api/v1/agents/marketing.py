@@ -1,6 +1,6 @@
 """Marketing agent API endpoints for campaign analysis and optimization."""
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -121,3 +121,42 @@ async def get_activity_log(
     ).limit(limit).all()
     
     return {"activities": activities, "count": len(activities)}
+
+
+@router.post("/generate-ad-copy", response_model=AgentResponse)
+async def generate_ad_copy(
+    property_name: str,
+    platform: str = "facebook",
+    objective: str = "lead_generation",
+    special_offer: Optional[str] = None,
+    num_variations: int = 3,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Generate advertising copy for a given platform using ChatGPT.
+    
+    The MarketingAgent uses OpenAI to create compelling ad copy variations
+    for Facebook, Instagram, Google Ads, TikTok, or LinkedIn.
+    """
+    from app.services.content_generation_service import generate_ad_copy as gen_copy
+
+    try:
+        result = await gen_copy(
+            property_name=property_name,
+            platform=platform,
+            objective=objective,
+            special_offer=special_offer,
+            num_variations=num_variations,
+        )
+
+        return AgentResponse(
+            success=result.get("success", False),
+            message=f"Generated {result.get('num_variations', 0)} ad copy variations for {platform}",
+            result=result
+        )
+    except Exception as e:
+        return AgentResponse(
+            success=False,
+            message=f"Ad copy generation failed: {str(e)}",
+            result=None
+        )

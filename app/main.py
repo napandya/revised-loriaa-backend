@@ -208,7 +208,7 @@ def _register_routes(app: FastAPI) -> None:
     # Import routers
     from app.api.v1 import (
         auth, bots, call_logs, teams, billing, knowledge_base, dashboard, voice,
-        leads, inbox, documents, settings as settings_router
+        leads, inbox, documents, settings as settings_router, ad_copy
     )
     from app.api.v1.agents import leasing, marketing, property as property_agent
     from app.api.v1.integrations import facebook, google_ads, twilio, resman
@@ -279,6 +279,9 @@ def _register_routes(app: FastAPI) -> None:
     app.include_router(google_ads.router, prefix="/api/v1", tags=["Integrations", "Google Ads"])
     app.include_router(twilio.router, prefix="/api/v1", tags=["Integrations", "Twilio"])
     app.include_router(resman.router, prefix="/api/v1", tags=["Integrations", "ResMan"])
+    
+    # Content generation (ChatGPT ad copy)
+    app.include_router(ad_copy.router, prefix="/api/v1/ad-copy", tags=["Ad Copy", "Content Generation"])
 
 
 # ============================================================
