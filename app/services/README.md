@@ -21,8 +21,8 @@ Handles all lead-related business logic including:
 - `get_pipeline_stats(db, filters...)` - Calculate pipeline metrics
 
 ### 2. `scoring_service.py` - AI Lead Scoring
-AI-powered intelligent lead scoring using Google Gemini:
-- **Gemini integration**: Uses Gemini 2.0 Flash for intelligent scoring
+AI-powered intelligent lead scoring using OpenAI GPT-4o:
+- **OpenAI integration**: Uses GPT-4o for intelligent scoring with JSON response mode
 - **Multi-factor analysis**: Considers source, engagement, response time, budget, timeline
 - **Fallback scoring**: Uses rule-based scoring if API unavailable
 - **Explanation generation**: Provides reasoning for scores
@@ -117,12 +117,9 @@ Multi-channel notification delivery:
 All services use settings from `app/core/config.py`:
 
 ```python
-# Required for scoring_service.py
-GOOGLE_API_KEY = "your-google-api-key"
-GEMINI_MODEL = "gemini-2.0-flash-exp"
-
-# Required for document_service.py
+# Required for scoring_service.py and agents
 OPENAI_API_KEY = "your-openai-api-key"
+OPENAI_MODEL = "gpt-4o"
 
 # Required for notification_service.py
 SENDGRID_API_KEY = "your-sendgrid-api-key"
@@ -191,7 +188,7 @@ lead = await update_lead_status(
 ```python
 from app.services.scoring_service import calculate_lead_score
 
-# Score a lead using Gemini AI
+# Score a lead using OpenAI GPT-4o
 result = await calculate_lead_score(db, lead)
 print(f"Score: {result['score']}/100")
 print(f"Explanation: {result['explanation']}")
@@ -257,8 +254,7 @@ pytest app/tests/services/
 ## Dependencies
 
 All required packages in `requirements.txt`:
-- `google-generativeai>=0.8.0` - Gemini AI
-- `openai>=1.12.0` - OpenAI embeddings
+- `openai>=1.12.0` - OpenAI (agents, scoring, embeddings, ad copy)
 - `sendgrid>=6.11.0` - Email delivery
 - `twilio>=8.10.0` - SMS delivery
 - `pgvector==0.2.4` - Vector similarity search

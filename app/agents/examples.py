@@ -150,5 +150,5 @@ if __name__ == "__main__":
     # example_property_agent()
     # example_multi_agent()
     
-    print("\nNote: Make sure GOOGLE_API_KEY is set in your environment")
+    print("\nNote: Make sure OPENAI_API_KEY is set in your environment")
     print("and the database is properly configured before running.")

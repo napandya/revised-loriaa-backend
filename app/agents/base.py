@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Callable
 import json
 import logging
 from datetime import datetime
-import google.generativeai as genai
+from openai import OpenAI
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class BaseAgent(ABC):
-    """Base class for all AI agents using Google Gemini."""
+    """Base class for all AI agents using OpenAI GPT-4o."""
     
     def __init__(
         self,
@@ -38,22 +38,17 @@ class BaseAgent(ABC):
         self.tools = tools or []
         self.agent_type = agent_type
         
-        # Configure Gemini
-        genai.configure(api_key=settings.GOOGLE_API_KEY)
+        # Configure OpenAI client
+        self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        self.model_name = settings.OPENAI_MODEL
         
-        # Initialize model with function calling support
-        self.model = genai.GenerativeModel(
-            model_name=settings.GEMINI_MODEL,
-            system_instruction=system_prompt
-        )
-        
-        # Build function declarations for tools
+        # Build function declarations for tools (OpenAI function-calling format)
         self.tool_declarations = self._build_tool_declarations()
         
         logger.info(f"Initialized {agent_name} with {len(self.tools)} tools")
     
     def _build_tool_declarations(self) -> List[Dict[str, Any]]:
-        """Build function declarations from tools for Gemini."""
+        """Build function declarations from tools for OpenAI function calling."""
         declarations = []
         
         for tool in self.tools:
@@ -61,11 +56,14 @@ class BaseAgent(ABC):
             func_name = tool.__name__
             func_doc = tool.__doc__ or ""
             
-            # Parse docstring for parameters (basic implementation)
+            # Build OpenAI function-calling schema
             declaration = {
-                "name": func_name,
-                "description": func_doc.strip().split('\n')[0] if func_doc else func_name,
-                "parameters": self._extract_parameters(tool)
+                "type": "function",
+                "function": {
+                    "name": func_name,
+                    "description": func_doc.strip().split('\n')[0] if func_doc else func_name,
+                    "parameters": self._extract_parameters(tool)
+                }
             }
             declarations.append(declaration)
         
@@ -197,47 +195,100 @@ class BaseAgent(ABC):
     def _execute_simple(self, prompt: str) -> Dict[str, Any]:
         """Execute without function calling."""
         try:
-            response = self.model.generate_content(prompt)
+            response = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=[
+                    {"role": "system", "content": self.system_prompt},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7
+            )
             return {
-                "response": response.text,
-                "metadata": {}
+                "response": response.choices[0].message.content or "",
+                "metadata": {
+                    "model": self.model_name,
+                    "usage": {
+                        "prompt_tokens": response.usage.prompt_tokens,
+                        "completion_tokens": response.usage.completion_tokens
+                    }
+                }
             }
         except Exception as e:
             logger.error(f"Error in simple execution: {str(e)}")
             raise
     
     def _execute_with_tools(self, prompt: str, db: Optional[Session]) -> Dict[str, Any]:
-        """Execute with function calling support."""
+        """Execute with function calling support (OpenAI tool-use loop)."""
         try:
-            # Create chat session
-            chat = self.model.start_chat(enable_automatic_function_calling=True)
-            
-            # Build tools for the model
+            # Build tools lookup
             tools_dict = {tool.__name__: tool for tool in self.tools}
             
-            # Send message
-            response = chat.send_message(
-                prompt,
-                tools=self.tools
-            )
+            # Initial messages
+            messages = [
+                {"role": "system", "content": self.system_prompt},
+                {"role": "user", "content": prompt}
+            ]
             
-            # Extract tool calls if any
-            tool_calls = []
-            if hasattr(response, 'candidates') and response.candidates:
-                for part in response.candidates[0].content.parts:
-                    if hasattr(part, 'function_call'):
-                        fc = part.function_call
-                        tool_calls.append({
-                            "name": fc.name,
-                            "args": dict(fc.args)
-                        })
+            all_tool_calls = []
+            max_iterations = 10  # Safety limit to prevent infinite loops
+            
+            for _ in range(max_iterations):
+                response = self.client.chat.completions.create(
+                    model=self.model_name,
+                    messages=messages,
+                    tools=self.tool_declarations,
+                    tool_choice="auto",
+                    temperature=0.7
+                )
+                
+                assistant_message = response.choices[0].message
+                messages.append(assistant_message)
+                
+                # If the model didn't call any tools, we're done
+                if not assistant_message.tool_calls:
+                    break
+                
+                # Process each tool call
+                for tool_call in assistant_message.tool_calls:
+                    func_name = tool_call.function.name
+                    func_args = json.loads(tool_call.function.arguments)
+                    
+                    all_tool_calls.append({
+                        "name": func_name,
+                        "args": func_args
+                    })
+                    
+                    # Execute the tool
+                    if func_name in tools_dict:
+                        try:
+                            result = tools_dict[func_name](**func_args)
+                            tool_result = json.dumps(result) if not isinstance(result, str) else result
+                        except Exception as tool_error:
+                            logger.error(f"Tool {func_name} failed: {str(tool_error)}")
+                            tool_result = json.dumps({"error": str(tool_error)})
+                    else:
+                        tool_result = json.dumps({"error": f"Unknown tool: {func_name}"})
+                    
+                    # Send tool result back to the model
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": tool_result
+                    })
+            
+            # Extract final text response
+            final_content = assistant_message.content or ""
             
             return {
-                "response": response.text if hasattr(response, 'text') else str(response),
-                "tool_calls": tool_calls,
+                "response": final_content,
+                "tool_calls": all_tool_calls,
                 "metadata": {
-                    "model": settings.GEMINI_MODEL,
-                    "timestamp": datetime.utcnow().isoformat()
+                    "model": self.model_name,
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "usage": {
+                        "prompt_tokens": response.usage.prompt_tokens,
+                        "completion_tokens": response.usage.completion_tokens
+                    }
                 }
             }
             

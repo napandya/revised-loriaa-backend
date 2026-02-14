@@ -1,6 +1,6 @@
 # Loriaa AI CRM — Backend
 
-AI-powered property management CRM backend built with FastAPI, Google Gemini agents, OpenAI ad-copy generation, and VAPI voice integration.
+AI-powered property management CRM backend built with FastAPI, OpenAI GPT-4o agents, ad-copy generation, and VAPI voice integration.
 
 ## Tech Stack
 
@@ -9,7 +9,7 @@ AI-powered property management CRM backend built with FastAPI, Google Gemini age
 | Framework | FastAPI 2.0, Python 3.13 |
 | Database | PostgreSQL 15 + pgvector |
 | Cache | Redis 7 |
-| AI Agents | Google ADK / Gemini 2.0 Flash |
+| AI Agents | OpenAI GPT-4o (function calling) |
 | Ad Copy | OpenAI GPT-4o |
 | Voice | VAPI (AI voice assistants) |
 | Background Jobs | Celery |
@@ -48,8 +48,7 @@ graph TB
     end
 
     subgraph External["External Services"]
-        Gemini["Google Gemini\n(Agent AI)"]
-        OpenAI["OpenAI GPT-4o\n(Ad Copy)"]
+        OpenAI["OpenAI GPT-4o\n(Agents, Ad Copy,\nScoring, Embeddings)"]
         VAPI["VAPI\n(Voice AI)"]
         Twilio["Twilio\n(SMS)"]
         FBads["Facebook\nMarketing API"]
@@ -80,8 +79,8 @@ graph TB
     Leasing --> Tools
     Marketing --> Tools
     Property --> Tools
-    Agents --> Gemini
-    Marketing --> OpenAI
+    Agents --> OpenAI
+    Services --> OpenAI
     Services --> PG
     Services --> Redis
     Tools --> PG
@@ -310,8 +309,8 @@ See [.env.example](.env.example) for all available variables. Key ones:
 |----------|----------|-------------|
 | `DATABASE_URL` | Yes | PostgreSQL connection string |
 | `SECRET_KEY` | Yes | JWT signing key (min 32 chars) |
-| `GOOGLE_API_KEY` | Yes | Google Gemini API key (agents) |
-| `OPENAI_API_KEY` | Yes | OpenAI API key (ad copy generation) |
+| `OPENAI_API_KEY` | Yes | OpenAI API key (agents, scoring, ad copy, embeddings) |
+| `GOOGLE_API_KEY` | Optional | Google API key (Ads / GMB integrations only) |
 | `VAPI_API_KEY` | Optional | VAPI voice assistant API key |
 | `TWILIO_ACCOUNT_SID` | Optional | Twilio SMS integration |
 | `TWILIO_AUTH_TOKEN` | Optional | Twilio auth |
@@ -321,7 +320,7 @@ See [.env.example](.env.example) for all available variables. Key ones:
 
 ## AI Agents
 
-Three specialized AI agents powered by Google Gemini, orchestrated by a COO coordinator:
+Three specialized AI agents powered by OpenAI GPT-4o with function calling, orchestrated by a COO coordinator:
 
 ### COO Orchestrator (`app/agents/orchestrator.py`)
 
@@ -449,7 +448,7 @@ app/
 ├── main.py                     # FastAPI application entry
 ├── database.py                 # DB setup, connection pooling
 ├── agents/                     # AI Agent System
-│   ├── base.py                 # Abstract base agent (Gemini)
+│   ├── base.py                 # Abstract base agent (OpenAI GPT-4o)
 │   ├── orchestrator.py         # COO orchestrator
 │   ├── prompts/                # System prompts per agent
 │   ├── tools/                  # Agent callable tools
@@ -492,7 +491,7 @@ app/
     ├── inbox_service.py
     ├── document_service.py
     ├── analytics_service.py
-    ├── scoring_service.py      # Gemini-powered lead scoring
+    ├── scoring_service.py      # OpenAI-powered lead scoring
     ├── notification_service.py
     ├── integration_service.py
     └── content_generation_service.py  # OpenAI ad copy

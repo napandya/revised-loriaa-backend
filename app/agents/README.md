@@ -1,6 +1,6 @@
 # AI Agent System - Phase 6
 
-This directory contains the complete AI agent system for the Loriaa platform, built using Google's Generative AI (Gemini).
+This directory contains the complete AI agent system for the Loriaa platform, built using OpenAI GPT-4o with function calling.
 
 ## Architecture
 
@@ -17,7 +17,7 @@ COOAgent (Orchestrator)
 
 #### 1. Base Agent (`base.py`)
 - Abstract base class for all agents
-- Google Gemini integration
+- OpenAI GPT-4o integration with function calling
 - Function/tool calling support
 - Activity logging to database
 - Error handling and retries
@@ -168,8 +168,8 @@ result = property_agent.answer_policy_question(
 Required environment variables (set in `.env` or `app/core/config.py`):
 
 ```bash
-GOOGLE_API_KEY=your_gemini_api_key
-GEMINI_MODEL=gemini-2.0-flash-exp  # or your preferred model
+OPENAI_API_KEY=your_openai_api_key
+OPENAI_MODEL=gpt-4o  # or your preferred model
 ```
 
 ### Database

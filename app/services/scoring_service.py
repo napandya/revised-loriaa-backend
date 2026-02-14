@@ -1,7 +1,7 @@
-"""AI-powered lead scoring service using Google Gemini."""
+"""AI-powered lead scoring service using OpenAI GPT-4o."""
 
 from typing import Dict, Any
-import google.generativeai as genai
+from openai import OpenAI
 from datetime import datetime, timedelta
 
 from app.models.lead import Lead, LeadSource, LeadStatus
@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 def calculate_lead_score(db: Session, lead: Lead) -> Dict[str, Any]:
     """
-    Calculate lead score using Google Gemini AI for intelligent scoring.
+    Calculate lead score using OpenAI GPT-4o for intelligent scoring.
     
     Analyzes multiple factors:
     - Lead source quality
@@ -30,16 +30,15 @@ def calculate_lead_score(db: Session, lead: Lead) -> Dict[str, Any]:
         Dictionary with 'score' (0-100) and 'explanation' describing the reasoning
         
     Raises:
-        IntegrationError: If Gemini API call fails
+        IntegrationError: If OpenAI API call fails
     """
     try:
-        # Configure Gemini API
-        if not settings.GOOGLE_API_KEY:
+        # Check OpenAI API key
+        if not settings.OPENAI_API_KEY:
             # Fallback to simple scoring if API key not configured
             return _fallback_scoring(db, lead)
         
-        genai.configure(api_key=settings.GOOGLE_API_KEY)
-        model = genai.GenerativeModel(settings.GEMINI_MODEL)
+        client = OpenAI(api_key=settings.OPENAI_API_KEY)
         
         # Gather lead data for analysis
         activity_count = db.query(LeadActivity).filter(
@@ -95,9 +94,20 @@ Respond ONLY with a JSON object in this exact format:
 {{"score": <number 0-100>, "explanation": "<2-3 sentence explanation>"}}
 """
         
-        # Call Gemini API
-        response = model.generate_content(prompt)
-        response_text = response.text.strip()
+        # Call OpenAI API
+        response = client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a lead scoring expert for a property management company. Always respond with valid JSON only."
+                },
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.3,
+            response_format={"type": "json_object"}
+        )
+        response_text = response.choices[0].message.content.strip()
         
         # Parse JSON response
         import json
@@ -128,8 +138,8 @@ Respond ONLY with a JSON object in this exact format:
         }
         
     except Exception as e:
-        # If Gemini fails, use fallback scoring
-        print(f"Gemini API error: {str(e)}, using fallback scoring")
+        # If OpenAI fails, use fallback scoring
+        print(f"OpenAI API error: {str(e)}, using fallback scoring")
         return _fallback_scoring(db, lead)
 
 

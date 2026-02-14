@@ -36,20 +36,21 @@ class Settings(BaseSettings):
         description="JWT token expiration time in minutes"
     )
     
-    # AI/LLM
-    GOOGLE_API_KEY: str = Field(
-        default="",
-        description="Google API key for Gemini"
-    )
-    
-    GEMINI_MODEL: str = Field(
-        default="gemini-2.0-flash-exp",
-        description="Gemini model name"
-    )
-    
+    # AI/LLM — OpenAI powers agents, lead scoring, ad copy, and embeddings
     OPENAI_API_KEY: str = Field(
         default="",
-        description="OpenAI API key for embeddings (backward compatibility)"
+        description="OpenAI API key for agents, scoring, ad copy, and embeddings"
+    )
+    
+    OPENAI_MODEL: str = Field(
+        default="gpt-4o",
+        description="OpenAI model for agent orchestration and lead scoring"
+    )
+    
+    # Google (used only for Google Ads / Google My Business integrations, NOT for AI agents)
+    GOOGLE_API_KEY: str = Field(
+        default="",
+        description="Google API key for Google Ads / GMB integrations (not used for AI agents)"
     )
     
     # Vapi Voice

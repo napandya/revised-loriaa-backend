@@ -73,9 +73,11 @@ services:
       # CORS - Allow frontend
       CORS_ORIGINS: '["http://localhost:3000","http://localhost:5173","http://frontend:3000"]'
       
-      # AI/ML (optional)
-      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      # AI/ML
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
+      # Google (only for Ads/GMB integrations, not agent AI)
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
       
       # VAPI (optional)
       VAPI_API_KEY: ${VAPI_API_KEY:-}
