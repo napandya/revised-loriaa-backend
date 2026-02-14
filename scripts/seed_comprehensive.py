@@ -43,6 +43,8 @@ from app.models.agent_activity import AgentActivity, AgentType
 from app.models.document import Document, DocumentCategory
 from app.models.integration_config import IntegrationConfig, IntegrationName
 from app.models.billing import BillingRecord
+from app.models.lead_activity import LeadActivity, ActivityType
+from app.models.knowledge_base import KnowledgeBase
 from app.core.security import get_password_hash
 
 
@@ -175,6 +177,70 @@ def seed_comprehensive():
             for lead in leads:
                 db.refresh(lead)
             print(f"  Created {len(leads)} leads")
+
+        # ============================================================
+        # 3b. LEAD ACTIVITIES (for lead timeline & scoring)
+        # ============================================================
+        print("\n[3b] Creating lead activities...")
+        
+        existing_lead_activities = db.query(LeadActivity).all()
+        if existing_lead_activities:
+            print(f"  Lead activities already exist ({len(existing_lead_activities)} found), skipping...")
+        else:
+            lead_activities_data = []
+            for i, lead in enumerate(leads[:8]):
+                # Every lead gets a creation note
+                lead_activities_data.append({
+                    "lead_id": lead.id, "user_id": demo_user.id,
+                    "activity_type": ActivityType.note,
+                    "description": f"Lead created from {lead.source.value}",
+                    "hours_ago": 72 + i * 12
+                })
+                # Contacted leads get an SMS/Email
+                if lead.status.value not in ("new",):
+                    lead_activities_data.append({
+                        "lead_id": lead.id, "user_id": demo_user.id,
+                        "activity_type": ActivityType.sms if i % 2 == 0 else ActivityType.email,
+                        "description": f"Sent initial outreach message to {lead.name}",
+                        "hours_ago": 48 + i * 6
+                    })
+                # Touring leads get a tour_scheduled
+                if lead.status.value in ("touring", "application", "lease", "move_in"):
+                    lead_activities_data.append({
+                        "lead_id": lead.id, "user_id": demo_user.id,
+                        "activity_type": ActivityType.tour_scheduled,
+                        "description": f"Tour scheduled for {lead.name} at Village Green Apartments",
+                        "hours_ago": 36 + i * 4
+                    })
+                # Application+ leads get a call
+                if lead.status.value in ("application", "lease", "move_in"):
+                    lead_activities_data.append({
+                        "lead_id": lead.id, "user_id": demo_user.id,
+                        "activity_type": ActivityType.call,
+                        "description": f"Follow-up call with {lead.name} about application status",
+                        "hours_ago": 24 + i * 2
+                    })
+                # Lease+ leads get a status change
+                if lead.status.value in ("lease", "move_in"):
+                    lead_activities_data.append({
+                        "lead_id": lead.id, "user_id": demo_user.id,
+                        "activity_type": ActivityType.status_change,
+                        "description": f"Lead status changed to {lead.status.value}",
+                        "hours_ago": 12 + i
+                    })
+            
+            for act_data in lead_activities_data:
+                activity = LeadActivity(
+                    lead_id=act_data["lead_id"],
+                    user_id=act_data["user_id"],
+                    activity_type=act_data["activity_type"],
+                    description=act_data["description"],
+                    created_at=datetime.utcnow() - timedelta(hours=act_data["hours_ago"])
+                )
+                db.add(activity)
+            
+            db.commit()
+            print(f"  Created {len(lead_activities_data)} lead activities")
 
         # ============================================================
         # 4. CONVERSATIONS & MESSAGES (for Inbox Page)
@@ -322,6 +388,39 @@ def seed_comprehensive():
             print(f"  Created {len(documents_data)} documents")
 
         # ============================================================
+        # 6b. KNOWLEDGE BASE (RAG entries for bot Q&A)
+        # ============================================================
+        print("\n[6b] Creating knowledge base entries...")
+        
+        existing_kb = db.query(KnowledgeBase).all()
+        if existing_kb:
+            print(f"  Knowledge base already has {len(existing_kb)} entries, skipping...")
+        else:
+            kb_entries = [
+                {"title": "Pet Policy Summary", "content": "Village Green Apartments allows cats and dogs up to 50 lbs. A $300 pet deposit and $25/month pet rent are required. Aggressive breeds (pitbulls, rottweilers) are not permitted. Service animals are exempt from pet fees per ADA requirements."},
+                {"title": "Rent & Payment Info", "content": "Rent is due on the 1st of each month. A 5-day grace period is provided. Late fee of $75 applies after the 5th. Payments accepted via online portal, check, or money order. No cash payments accepted at the office."},
+                {"title": "Parking Details", "content": "Each unit comes with one assigned parking spot included in rent. Additional covered parking is $50/month and uncovered parking is $25/month. Guest parking is available in designated visitor spots. No commercial vehicles or trailers allowed."},
+                {"title": "Amenities Overview", "content": "Community amenities include: 24-hour fitness center, resort-style pool (open May-September), clubhouse with kitchen, dog park, business center with free WiFi, package lockers, and on-site laundry in select buildings."},
+                {"title": "Lease Terms", "content": "Standard lease terms are 12 months. Short-term leases (6-9 months) available at premium rate (+$100/month). Month-to-month available after initial lease term at +$200/month. 60-day written notice required for non-renewal. Early termination fee equals 2 months rent."},
+                {"title": "Maintenance Procedures", "content": "Submit maintenance requests through the resident portal or call the office. Emergency maintenance available 24/7 for issues like water leaks, no heat/AC, or lockouts. Standard requests handled within 48 business hours. Entry notice provided 24 hours in advance except for emergencies."},
+                {"title": "Move-In Requirements", "content": "Required before move-in: security deposit (one month rent), first month rent, renter's insurance (minimum $100K liability), utility setup confirmation. Move-in inspection conducted jointly with management. Key pickup at leasing office during business hours."},
+                {"title": "Noise & Quiet Hours", "content": "Quiet hours are 10 PM to 8 AM Sunday-Thursday, and 11 PM to 9 AM Friday-Saturday. Music, TV, and conversations should be kept at reasonable levels. Construction and power tool use only allowed 9 AM to 7 PM weekdays. Violations may result in lease violation notices."},
+            ]
+            
+            for kb_data in kb_entries:
+                kb = KnowledgeBase(
+                    bot_id=bot1.id,
+                    title=kb_data["title"],
+                    content=kb_data["content"],
+                    embedding=None,  # Would be populated by embedding pipeline
+                    document_metadata={"source": "seed_data", "version": "1.0"}
+                )
+                db.add(kb)
+            
+            db.commit()
+            print(f"  Created {len(kb_entries)} knowledge base entries")
+
+        # ============================================================
         # 7. INTEGRATION CONFIGS (for Settings Page)
         # ============================================================
         print("\n[7/10] Creating integration configs...")
@@ -451,12 +550,14 @@ def seed_comprehensive():
         print("\nData created for all screens:")
         print("  - Dashboard: Portfolio health, leads by source, AI activity")
         print("  - Leads Page: 10 leads across all funnel stages")
+        print("  - Lead Activities: Timeline events (calls, SMS, tours, status changes)")
         print("  - Inbox: 3 conversations with messages")
         print("  - Leasing Agent: Leads in inquiry/touring/application/lease/move-in")
         print("  - Marketing Agent: Agent activities for campaigns")
-        print("  - Property Manager: 10 knowledge base documents")
+        print("  - Property Manager: 10 knowledge base documents + 8 RAG entries")
         print("  - Settings: 4 integrations, billing records")
         print("  - Team: 5 team members")
+        print("  - Call Logs: 10 call records for analytics")
         print("\n" + "-"*60)
         print("LOGIN CREDENTIALS:")
         print("  Email: demo@loriaa.ai")
